@@ -1,0 +1,169 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+//Heavily Based upon Sebastian Lague's video: https://www.youtube.com/watch?v=Cp5WWtMoeKg
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+Texture2D<float4> Origin;
+RWTexture2D<float4> Result;
+
+float4x4 WorldCamera;
+float4x4 InverseCameraProj;
+
+static const float maxIt = 70;
+static const float EPSILON = 0.001f;
+
+struct Shape 
+{
+    float3 pos;
+    float3 size;
+    int operation;
+    float blending;
+    int children;
+};
+
+StructuredBuffer<Shape> scene;
+int totalShapes;
+
+//Ray struct containing stuff like ro and rd
+struct Ray
+{
+    float3 origin;
+    float3 direction;
+};
+
+// Really neat Distance Functions for RayMarching: https://iquilezles.org/www/articles/distfunctions/distfunctions.htm
+//Alot of the usage comes from here: http://jamie-wong.com/2016/07/15/ray-marching-signed-distance-functions/
+float sdSphere(float3 eye, float3 centre, float radius)
+{
+    return distance( eye, centre) - radius;
+    //distance(eye, centre) gives us the length for The point.
+    //Jamie wong's article uses it like this: sphereSDF(samplePoint / 1.2) * 1.2;
+    //This sets the radius through the function, may be wrong we will see.
+}
+
+Ray SetRay(float3 origin, float3 direction)
+{
+    Ray newRay;
+    newRay.origin = origin;
+    newRay.direction = direction;
+    return newRay;   
+}
+
+Ray SetRayToCamera(float2 uv)
+{
+    float3 newOrigin = mul(WorldCamera, float4(0,0,0,1)).xyz;
+    float3 newDirection = mul(InverseCameraProj, float4(uv,0,1)).xyz;
+    //Continue multiplying to newDirection Matrix. WorldCamera and normalize
+    newDirection = mul(WorldCamera, float4(newDirection,0)).xyz;
+    newDirection = normalize(newDirection);
+    
+    return SetRay(newOrigin, newDirection);
+}
+
+float4 Blend(float a, float b, float k) {
+    float h = clamp(0.5+0.5*(b-a)/k, 0.0, 1.0);
+    float blendDst = lerp(b, a, h) - k*h*(1.0-h);
+    
+    
+    return float4(float3(1.0, 1.0,1.0),blendDst);
+}
+
+//Combining multiple shapes together. Gives us that metaball style effect and 
+//will be usefull in shaping.
+float4 Combine(float distA, float distB, int operation, float blending)
+{
+    float dist = distA;
+    
+    if(operation == 0) {
+        if(distB < distA) {
+            dist = distB;
+        }
+    }
+    else if(operation == 1) {
+        float4 blend = Blend(distA, distB, blending);
+        dist = blend.w;
+        
+    }
+    else if(operation ==2) {
+        if(-distB > dist) {
+            dist = -distB;
+        }
+    }
+    else if(operation == 3) {
+        if(distB > dist) {
+            dist = distB;
+        }
+    }
+    
+    return float4(float3(1.0, 1.0, 1.0),dist);
+}
+
+
+float4 Scene(float3 eye)
+{
+    float globalDist = maxIt;
+    //iterating through all sdf's in scene
+    for(int i = 0; i < totalShapes; i++) {
+        Shape shape = scene[i];
+        
+        int shapeChildren = shape.children;
+        
+        float Dist = sdSphere(eye, shape.pos, shape.size.x);
+        
+        for(int j = 0; j < shapeChildren; j++) {
+            Shape child = scene[i+j+1];
+            float childDist = sdSphere(eye, child.pos, child.size.x);
+            float4 combined = Combine(Dist, childDist, child.operation, child.blending);
+            Dist = combined.w;
+        }
+        i+=shapeChildren;
+        
+        float4 fullCombine = Combine(globalDist, Dist, shape.operation, shape.blending);
+        globalDist = fullCombine.w;
+        
+    }
+    return float4(float3(1.0, 1.0, 1.0),globalDist);
+}
+
+
+[numthreads(8,8,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+//This whole part is pretty much an adaptation of http://jamie-wong.com/2016/07/15/ray-marching-signed-distance-functions/
+    uint width, height;
+    Result.GetDimensions(width, height);
+    
+    Result[id.xy] = Origin[id.xy];
+    
+    float2 uv = id.xy / float2(width,height) *2 -1;
+    float rayDist = 0;
+    
+    Ray ray = SetRayToCamera(uv);
+    int marchIterations = 0;
+    
+    while(rayDist < maxIt) {
+        marchIterations++;
+        float4 sceneInfo = Scene(ray.origin);
+        float dist = sceneInfo.w;
+        
+        if(dist <= EPSILON) {
+            float3 surfacePoint = ray.origin * ray.direction * dist;
+            //Normal
+            //Light direction
+            //Lighting
+            
+            
+            //Shadows
+            
+            //Doing the basic, just seting the depth
+            Result[id.xy] = float4( float3(1.0, 1.0, 1.0), 1); //Hardcoding the color white. we could multiple lighting and shadows here.
+            break;
+        }
+        //Move along the ray
+        ray.origin += ray.direction * dist;
+        rayDist += dist;
+    }
+    
+    
+}
