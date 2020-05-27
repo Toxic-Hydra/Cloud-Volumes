@@ -13,6 +13,9 @@ float4x4 InverseCameraProj;
 static const float maxIt = 70;
 static const float EPSILON = 0.001f;
 
+Texture2D<float4> Noise;
+int noiseIterations;
+
 struct Shape 
 {
     float3 pos;
@@ -36,6 +39,7 @@ struct Ray
 //Alot of the usage comes from here: http://jamie-wong.com/2016/07/15/ray-marching-signed-distance-functions/
 float sdSphere(float3 eye, float3 centre, float radius)
 {
+    //center here being center of sphere, so pos
     return distance( eye, centre) - radius;
     //distance(eye, centre) gives us the length for The point.
     //Jamie wong's article uses it like this: sphereSDF(samplePoint / 1.2) * 1.2;
@@ -60,6 +64,7 @@ Ray SetRayToCamera(float2 uv)
     
     return SetRay(newOrigin, newDirection);
 }
+
 
 float4 Blend(float a, float b, float k) {
     float h = clamp(0.5+0.5*(b-a)/k, 0.0, 1.0);
@@ -99,6 +104,10 @@ float4 Combine(float distA, float distB, int operation, float blending)
     return float4(float3(1.0, 1.0, 1.0),dist);
 }
 
+float displacement(float3 p) //iq function using it to test scene displacement
+{
+    return sin(20*p.x)*sin(20*p.y)*sin(20*p.z);
+}
 
 float4 Scene(float3 eye)
 {
@@ -110,6 +119,8 @@ float4 Scene(float3 eye)
         int shapeChildren = shape.children;
         
         float Dist = sdSphere(eye, shape.pos, shape.size.x);
+        
+        
         
         for(int j = 0; j < shapeChildren; j++) {
             Shape child = scene[i+j+1];
@@ -124,6 +135,60 @@ float4 Scene(float3 eye)
         
     }
     return float4(float3(1.0, 1.0, 1.0),globalDist);
+}
+
+//https://www.shadertoy.com/view/4djSRW
+float3 hash( float3 p )
+{
+	p = float3( dot(p,float3(127.1,311.7, 74.7)),
+			  dot(p,float3(269.5,183.3,246.1)),
+			  dot(p,float3(113.5,271.9,124.6)));
+
+	return frac(sin(p)*43758.5453123);
+}
+
+
+//iq gradient noise 3d
+// returns 3D value noise
+float noise( float3 x )
+{
+    // grid
+    float3 p = floor(x);
+    float3 w = frac(x);
+    
+    // quintic interpolant
+    float3 u = w*w*w*(w*(w*6.0-15.0)+10.0);
+
+    
+    // gradients
+    float3 ga = hash( p+float3(0.0,0.0,0.0) );
+    float3 gb = hash( p+float3(1.0,0.0,0.0) );
+    float3 gc = hash( p+float3(0.0,1.0,0.0) );
+    float3 gd = hash( p+float3(1.0,1.0,0.0) );
+    float3 ge = hash( p+float3(0.0,0.0,1.0) );
+    float3 gf = hash( p+float3(1.0,0.0,1.0) );
+    float3 gg = hash( p+float3(0.0,1.0,1.0) );
+    float3 gh = hash( p+float3(1.0,1.0,1.0) );
+    
+    // projections
+    float va = dot( ga, w-float3(0.0,0.0,0.0) );
+    float vb = dot( gb, w-float3(1.0,0.0,0.0) );
+    float vc = dot( gc, w-float3(0.0,1.0,0.0) );
+    float vd = dot( gd, w-float3(1.0,1.0,0.0) );
+    float ve = dot( ge, w-float3(0.0,0.0,1.0) );
+    float vf = dot( gf, w-float3(1.0,0.0,1.0) );
+    float vg = dot( gg, w-float3(0.0,1.0,1.0) );
+    float vh = dot( gh, w-float3(1.0,1.0,1.0) );
+	
+    // interpolation
+    return va + 
+           u.x*(vb-va) + 
+           u.y*(vc-va) + 
+           u.z*(ve-va) + 
+           u.x*u.y*(va-vb-vc+vd) + 
+           u.y*u.z*(va-vc-ve+vg) + 
+           u.z*u.x*(va-vb-ve+vf) + 
+           u.x*u.y*u.z*(-va+vb+vc-vd+ve-vf-vg+vh);
 }
 
 
@@ -144,11 +209,20 @@ void CSMain (uint3 id : SV_DispatchThreadID)
     
     while(rayDist < maxIt) {
         marchIterations++;
+        float3 surfacePoint = ray.origin + rayDist * ray.direction;//ray.direction
         float4 sceneInfo = Scene(ray.origin);
+        
         float dist = sceneInfo.w;
         
+        //Noise Application
+        //dist += 0.5*(displacement(surfacePoint*float3(.3,.15,.3))-0.5);
+        dist += noise(surfacePoint); //single pass value perturbance. Need to consider fbm or position perturbance
+        
+        
         if(dist <= EPSILON) {
-            float3 surfacePoint = ray.origin * ray.direction * dist;
+            
+            
+            
             //Normal
             //Light direction
             //Lighting
@@ -158,6 +232,7 @@ void CSMain (uint3 id : SV_DispatchThreadID)
             
             //Doing the basic, just seting the depth
             Result[id.xy] = float4( float3(1.0, 1.0, 1.0), 1); //Hardcoding the color white. we could multiple lighting and shadows here.
+            //Result[id.xy] = Result[id.xy] * Noise[id.xy];
             break;
         }
         //Move along the ray

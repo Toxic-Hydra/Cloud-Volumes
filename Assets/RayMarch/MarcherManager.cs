@@ -18,6 +18,8 @@ public class MarcherManager : MonoBehaviour
 
     private List<ComputeBuffer> buffers;
 
+    private Texture2D Noise;
+
     void Setup()
     {
         view = Camera.current;
@@ -116,6 +118,13 @@ public class MarcherManager : MonoBehaviour
                 children = sphere.children
             };
         }
+
+        Noise = orderedSpheres[0].Noise;
+        if (Noise)
+        {
+            rayMarcher.SetInt("noiseIterations", orderedSpheres[0].noiseIterations);
+            rayMarcher.SetTexture(0,"Noise",Noise);
+        }
         
         int dataSize = sizeof(float) * 7 + sizeof(int) * 2;
         ComputeBuffer sphereBuffer = new ComputeBuffer(sphereData.Length, dataSize);
@@ -131,8 +140,11 @@ public class MarcherManager : MonoBehaviour
         //ommitting light stuff
         rayMarcher.SetMatrix("WorldCamera", view.cameraToWorldMatrix);
         rayMarcher.SetMatrix("InverseCameraProj", view.projectionMatrix.inverse);
+        
         //Set light parameters.
     }
+
+    
 
     // Start is called before the first frame update
     void Start()
