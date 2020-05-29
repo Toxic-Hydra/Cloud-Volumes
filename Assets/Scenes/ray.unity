@@ -146,7 +146,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 766072046}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 3.91}
+  m_LocalPosition: {x: -1.2, y: 0, z: 3.45}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 852598375}
@@ -192,7 +192,7 @@ PrefabInstance:
     - target: {fileID: 2232880060306336922, guid: 8b24d9ca52e82a1489f8f9e79f37c993,
         type: 3}
       propertyPath: m_LocalPosition.z
-      value: -8.54
+      value: -11.49
       objectReference: {fileID: 0}
     - target: {fileID: 2232880060306336922, guid: 8b24d9ca52e82a1489f8f9e79f37c993,
         type: 3}
@@ -237,7 +237,7 @@ PrefabInstance:
     - target: {fileID: 2232880060306336923, guid: 8b24d9ca52e82a1489f8f9e79f37c993,
         type: 3}
       propertyPath: noiseIterations
-      value: 0
+      value: 25
       objectReference: {fileID: 0}
     - target: {fileID: 2232880060306336923, guid: 8b24d9ca52e82a1489f8f9e79f37c993,
         type: 3}
@@ -248,6 +248,11 @@ PrefabInstance:
         type: 3}
       propertyPath: children
       value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2232880060306336923, guid: 8b24d9ca52e82a1489f8f9e79f37c993,
+        type: 3}
+      propertyPath: blending
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 2232880060306336924, guid: 8b24d9ca52e82a1489f8f9e79f37c993,
         type: 3}
