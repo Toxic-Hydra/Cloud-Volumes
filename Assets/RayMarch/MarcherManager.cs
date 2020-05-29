@@ -119,7 +119,7 @@ public class MarcherManager : MonoBehaviour
             };
         }
 
-        Noise = orderedSpheres[0].Noise;
+        Noise = orderedSpheres[0].Noise; //TODO: the 2d noise isn't working out. I'll probably remove it.
         if (Noise)
         {
             rayMarcher.SetInt("noiseIterations", orderedSpheres[0].noiseIterations);

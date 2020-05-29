@@ -41,9 +41,7 @@ float sdSphere(float3 eye, float3 centre, float radius)
 {
     //center here being center of sphere, so pos
     return distance( eye, centre) - radius;
-    //distance(eye, centre) gives us the length for The point.
-    //Jamie wong's article uses it like this: sphereSDF(samplePoint / 1.2) * 1.2;
-    //This sets the radius through the function, may be wrong we will see.
+    
 }
 
 Ray SetRay(float3 origin, float3 direction)
@@ -191,6 +189,7 @@ float noise( float3 x )
            u.x*u.y*u.z*(-va+vb+vc-vd+ve-vf-vg+vh);
 }
 
+//Adapted from book of shaders: https://gist.github.com/patriciogonzalezvivo/670c22f3966e662d2f83
 float fbm(float3 x) {
 	float v = 0.0;
 	float a = 0.5;
@@ -226,7 +225,7 @@ void CSMain (uint3 id : SV_DispatchThreadID)
         float dist = sceneInfo.w;
         
         //Noise Application
-        //dist += 0.5*(displacement(surfacePoint*float3(.3,.15,.3))-0.5);
+        //dist += 0.5*(displacement(surfacePoint*float3(.3,.15,.3))-0.5); //Generates a fuzz ball.
         dist += fbm(surfacePoint); //single pass value perturbance. Need to consider fbm or position perturbance
         
         
