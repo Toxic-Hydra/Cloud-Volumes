@@ -10,17 +10,22 @@ RWTexture2D<float4> Result;
 float4x4 WorldCamera;
 float4x4 InverseCameraProj;
 
+float3 _Light;
+bool positionLight;
+
 static const float maxIt = 70;
 static const float EPSILON = 0.001f;
+static const float shadowBias = EPSILON * 50;
 
 Texture2D<float4> Noise;
 int noiseIterations;
 
 struct Shape 
 {
-    float3 pos;
+    float3 position;
     float3 size;
     int operation;
+    int shapeType;
     float blending;
     int children;
 };
@@ -43,6 +48,20 @@ float sdSphere(float3 eye, float3 centre, float radius)
     return distance( eye, centre) - radius;
     
 }
+
+float CubeDistance(float3 eye, float3 centre, float3 size) {
+    float3 o = abs(eye-centre) -size;
+    float ud = length(max(o,0));
+    float n = max(max(min(o.x,0),min(o.y,0)), min(o.z,0));
+    return ud+n;
+}
+
+float TorusDistance(float3 eye, float3 centre, float r1, float r2)
+{   
+    float2 q = float2(length((eye-centre).xz)-r1,eye.y-centre.y);
+    return length(q)-r2;
+}
+
 
 Ray SetRay(float3 origin, float3 direction)
 {
@@ -107,33 +126,7 @@ float displacement(float3 p) //iq function using it to test scene displacement
     return sin(20*p.x)*sin(20*p.y)*sin(20*p.z);
 }
 
-float4 Scene(float3 eye)
-{
-    float globalDist = maxIt;
-    //iterating through all sdf's in scene
-    for(int i = 0; i < totalShapes; i++) {
-        Shape shape = scene[i];
-        
-        int shapeChildren = shape.children;
-        
-        float Dist = sdSphere(eye, shape.pos, shape.size.x);
-        
-        
-        
-        for(int j = 0; j < shapeChildren; j++) {
-            Shape child = scene[i+j+1];
-            float childDist = sdSphere(eye, child.pos, child.size.x);
-            float4 combined = Combine(Dist, childDist, child.operation, child.blending);
-            Dist = combined.w;
-        }
-        i+=shapeChildren;
-        
-        float4 fullCombine = Combine(globalDist, Dist, shape.operation, shape.blending);
-        globalDist = fullCombine.w;
-        
-    }
-    return float4(float3(1.0, 1.0, 1.0),globalDist);
-}
+
 
 //https://www.shadertoy.com/view/4djSRW
 float3 hash( float3 p )
@@ -202,6 +195,79 @@ float fbm(float3 x) {
 	return v;
 }
 
+float GetShapeDistance(Shape shape, float3 eye) {
+   
+    if (shape.shapeType == 0) {
+        return sdSphere(eye, shape.position, shape.size.x);
+    }
+    else if (shape.shapeType == 1) {
+        return CubeDistance(eye, shape.position, shape.size);
+    }
+    else if (shape.shapeType == 2) {
+        return TorusDistance(eye, shape.position, shape.size.x, shape.size.y);
+    }
+
+    return maxIt;
+}
+
+float4 Scene(float3 eye)
+{
+    float globalDist = maxIt;
+    //iterating through all sdf's in scene
+    for(int i = 0; i < totalShapes; i++) {
+        Shape shape = scene[i];
+        
+        int shapeChildren = shape.children;
+        
+        float Dist = sdSphere(eye, shape.position, shape.size.x);
+        
+        
+        
+        for(int j = 0; j < shapeChildren; j++) {
+            Shape child = scene[i+j+1];
+            float childDist = sdSphere(eye, child.position, child.size.x);
+            float4 combined = Combine(Dist, childDist, child.operation, child.blending);
+            Dist = combined.w;
+        }
+        i+=shapeChildren;
+        
+        float4 fullCombine = Combine(globalDist, Dist, shape.operation, shape.blending);
+        globalDist = fullCombine.w;
+        
+    }
+    return float4(float3(1.0, 1.0, 1.0),globalDist);
+}
+
+float3 EstimateNormal(float3 p) {
+    float x = Scene(float3(p.x+EPSILON,p.y,p.z)).w - Scene(float3(p.x-EPSILON,p.y,p.z)).w;
+    float y = Scene(float3(p.x,p.y+EPSILON,p.z)).w - Scene(float3(p.x,p.y-EPSILON,p.z)).w;
+    float z = Scene(float3(p.x,p.y,p.z+EPSILON)).w - Scene(float3(p.x,p.y,p.z-EPSILON)).w;
+    return normalize(float3(x,y,z));
+}
+
+float CalculateShadow(Ray ray, float dstToShadePoint) {
+    float rayDst = 0;
+    int marchSteps = 0;
+    float shadowIntensity = .2;
+    float brightness = 1;
+
+    while (rayDst < dstToShadePoint) {
+        marchSteps ++;
+        float4 sceneInfo = Scene(ray.origin);
+        float dst = sceneInfo.w;
+        
+        if (dst <= EPSILON) {
+            return shadowIntensity;
+        }
+
+        brightness = min(brightness,dst*200);
+
+        ray.origin += ray.direction * dst;
+        rayDst += dst;
+    }
+    return shadowIntensity + (1-shadowIntensity) * brightness;
+}
+
 [numthreads(8,8,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
@@ -230,15 +296,21 @@ void CSMain (uint3 id : SV_DispatchThreadID)
         
         
         if(dist <= EPSILON) {
+            float3 pointOnSurface = ray.origin + ray.direction * dist;
+            float3 normal = EstimateNormal(pointOnSurface - ray.direction * EPSILON);
+            float3 lightDir = (positionLight)?normalize(_Light-ray.origin):-_Light;
+            float lighting = saturate(saturate(dot(normal,lightDir)));
+            float3 col = sceneInfo.xyz;
             
-            
-            
-            //Normal
-            //Light direction
-            //Lighting
-            
-            
-            //Shadows
+            // Shadow
+            float3 offsetPos = pointOnSurface + normal * shadowBias;
+            float3 dirToLight = (positionLight)?normalize(_Light- offsetPos):-_Light;
+
+            ray.origin = offsetPos;
+            ray.direction = dirToLight;
+
+            float dstToLight = (positionLight)?distance(offsetPos,_Light):maxIt;
+            float shadow = CalculateShadow(ray, dstToLight);
             
             //Doing the basic, just seting the depth
             Result[id.xy] = float4( float3(1.0, 1.0, 1.0), 1); //Hardcoding the color white. we could multiple lighting and shadows here.

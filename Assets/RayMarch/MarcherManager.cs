@@ -11,10 +11,10 @@ public class MarcherManager : MonoBehaviour
     public ComputeShader rayMarcher;
     //Compute Shader tells us to do this.
     RenderTexture target;
+    Light lightSource;
 
     private Camera view;
 
-    private Light light;
 
     private List<ComputeBuffer> buffers;
 
@@ -23,7 +23,7 @@ public class MarcherManager : MonoBehaviour
     void Setup()
     {
         view = Camera.current;
-        light = FindObjectOfType<Light>();
+        lightSource = FindObjectOfType<Light>();
     }
 
     private void OnRenderImage(RenderTexture src, RenderTexture dest)
@@ -138,23 +138,12 @@ public class MarcherManager : MonoBehaviour
     void ParameterSetup()
     {
         //ommitting light stuff
+        bool lightIsDirectional = lightSource.type == LightType.Directional;
+
         rayMarcher.SetMatrix("WorldCamera", view.cameraToWorldMatrix);
         rayMarcher.SetMatrix("InverseCameraProj", view.projectionMatrix.inverse);
-        
-        //Set light parameters.
+        rayMarcher.SetVector ("_Light", (lightIsDirectional) ? lightSource.transform.forward : lightSource.transform.position);
+        rayMarcher.SetBool ("positionLight", !lightIsDirectional);    
     }
-
     
-
-    // Start is called before the first frame update
-    void Start()
-    {
-        
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
 }
