@@ -6,13 +6,10 @@ using UnityEngine;
 public class Sphere : MonoBehaviour
 {
     
-    //Noise Values
-    public int noiseW = 256;
-    public int noiseH = 256;
-    public float cycles = 1.0f;
+    
     [Range(0, 256)] public int noiseIterations;
 
-    public Texture2D Noise;
+    
 
     public enum Operation
     {
@@ -49,34 +46,10 @@ public class Sphere : MonoBehaviour
         }
     }
     
-    //https://docs.unity3d.com/ScriptReference/Mathf.PerlinNoise.html
-    void generateNoiseTexture()
-    {
-        float y = 0.0f;
-        Color[] values = new Color[noiseW * noiseH];
-
-        while (y < noiseH)
-        {
-            float x = 0.0f;
-            while (x < noiseW)
-            {
-                float u = 0 + x / noiseW * cycles;
-                float v = 0 + y / noiseH * cycles;
-                float sample = Mathf.PerlinNoise(u, v);
-                values[(int)y * noiseW + (int)x] = new Color(sample, sample, sample);
-                x++; //Like a total goblin I forgot the incrementers which resulted in me being very angry when my unity editor crashed
-            }
-
-            y++;
-        }
-        
-        Noise = new Texture2D(noiseW, noiseH);
-        Noise.SetPixels(values);
-        Noise.Apply();
-    }
+    
 
     private void Start()
     {
-        generateNoiseTexture();
+        
     }
 }

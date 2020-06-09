@@ -25,7 +25,7 @@ struct Shape
     float3 position;
     float3 size;
     int operation;
-    int shapeType;
+    //int shapeType;
     float blending;
     int children;
 };
@@ -195,6 +195,7 @@ float fbm(float3 x) {
 	return v;
 }
 
+/*
 float GetShapeDistance(Shape shape, float3 eye) {
    
     if (shape.shapeType == 0) {
@@ -208,7 +209,7 @@ float GetShapeDistance(Shape shape, float3 eye) {
     }
 
     return maxIt;
-}
+}*/
 
 float4 Scene(float3 eye)
 {
@@ -313,7 +314,8 @@ void CSMain (uint3 id : SV_DispatchThreadID)
             float shadow = CalculateShadow(ray, dstToLight);
             
             //Doing the basic, just seting the depth
-            Result[id.xy] = float4( float3(1.0, 1.0, 1.0), 1); //Hardcoding the color white. we could multiple lighting and shadows here.
+            //Result[id.xy] = float4( float3(1.0, 1.0, 1.0), 1); //Hardcoding the color white. we could multiple lighting and shadows here.
+            Result[id.xy] = float4(col * lighting * shadow, 1);
             //Result[id.xy] = Result[id.xy] * Noise[id.xy];
             break;
         }

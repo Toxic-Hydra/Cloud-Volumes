@@ -96,7 +96,7 @@ public class MarcherManager : MonoBehaviour
                 allSpheres[i].children = parentSphere.childCount;
                 for (int j = 0; j < parentSphere.childCount; j++)
                 {
-                    if (parentSphere.GetChild(j).GetComponent<Sphere>())
+                    if (parentSphere.GetChild(j).GetComponent<Sphere>() != null)
                     {
                         orderedSpheres.Add(parentSphere.GetChild(j).GetComponent<Sphere>());
                         orderedSpheres[orderedSpheres.Count - 1].children = 0;
@@ -119,12 +119,12 @@ public class MarcherManager : MonoBehaviour
             };
         }
 
-        Noise = orderedSpheres[0].Noise; //TODO: the 2d noise isn't working out. I'll probably remove it.
-        if (Noise)
-        {
+        //Noise = orderedSpheres[0].Noise; //TODO: the 2d noise isn't working out. I'll probably remove it.
+        //if (Noise)
+        //{
             rayMarcher.SetInt("noiseIterations", orderedSpheres[0].noiseIterations);
-            rayMarcher.SetTexture(0,"Noise",Noise);
-        }
+            //rayMarcher.SetTexture(0,"Noise",Noise);
+        //}
         
         int dataSize = sizeof(float) * 7 + sizeof(int) * 2;
         ComputeBuffer sphereBuffer = new ComputeBuffer(sphereData.Length, dataSize);
