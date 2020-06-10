@@ -269,6 +269,14 @@ float CalculateShadow(Ray ray, float dstToShadePoint) {
     return shadowIntensity + (1-shadowIntensity) * brightness;
 }
 
+float scene2(float3 p)
+{
+    p.y *= 2.;
+	//return 0.4-length(p)*0.03 + 0.5*(fbm(p*vec3(.3,.15,.3))-0.5); // value perturbation
+    return 0.4-length(p*(1.0+fbm(p*float3(.3,.15,.3))))*0.02; // position perturbation
+}
+
+
 [numthreads(8,8,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
@@ -311,11 +319,35 @@ void CSMain (uint3 id : SV_DispatchThreadID)
             ray.direction = dirToLight;
 
             float dstToLight = (positionLight)?distance(offsetPos,_Light):maxIt;
-            float shadow = CalculateShadow(ray, dstToLight);
+            float shadow = 1;//CalculateShadow(ray, dstToLight);
+
+            float Ts =2.2;
+            float Tl = 1.0;
+            for(int i=0; i<128; i++)
+            {
+                float density = scene2(lighting);
+                if(density>0.)
+                {
+                    float tmp = density / float(128.);
+                    Ts *= 1. -tmp * 210.;
+                    if( Ts <= 0.01)
+                        break;
+                        
+                    Tl = 1.0;
+                    for(int j=0; j<8; j++)
+                    {
+                    float densityLight = scene2( lighting + normalize(lightDir)*float(j)*1.);
+                        if(densityLight>0.05)
+                            Tl *= 1. - densityLight * 210./float(128);
+                        if (Tl <= 0.01)
+                            break;
+                    }
+                }
+            }
             
             //Doing the basic, just seting the depth
             //Result[id.xy] = float4( float3(1.0, 1.0, 1.0), 1); //Hardcoding the color white. we could multiple lighting and shadows here.
-            Result[id.xy] = float4(col * lighting * shadow, 1);
+            Result[id.xy] = float4((col * lighting * shadow + Tl ), 1);
             //Result[id.xy] = Result[id.xy] * Noise[id.xy];
             break;
         }
