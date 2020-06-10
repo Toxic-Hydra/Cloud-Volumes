@@ -49,7 +49,10 @@ public class MarcherManager : MonoBehaviour
         foreach (var buffer in buffers)
         {
             buffer.Dispose();
+            buffer.Release();
         }
+
+        
     }
 
     void InitRenderTexture()
