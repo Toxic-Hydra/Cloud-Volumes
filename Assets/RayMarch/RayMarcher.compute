@@ -15,7 +15,7 @@ bool positionLight;
 
 static const float maxIt = 70;
 static const float EPSILON = 0.001f;
-static const float shadowBias = EPSILON * 50;
+static const float shadowBias = EPSILON * 10;
 
 Texture2D<float4> Noise;
 int noiseIterations;
@@ -239,7 +239,7 @@ float4 Scene(float3 eye)
     return float4(float3(1.0, 1.0, 1.0),globalDist);
 }
 
-float3 EstimateNormal(float3 p) {
+float3 EstimateNormal(float3 p) {//w
     float x = Scene(float3(p.x+EPSILON,p.y,p.z)).w - Scene(float3(p.x-EPSILON,p.y,p.z)).w;
     float y = Scene(float3(p.x,p.y+EPSILON,p.z)).w - Scene(float3(p.x,p.y-EPSILON,p.z)).w;
     float z = Scene(float3(p.x,p.y,p.z+EPSILON)).w - Scene(float3(p.x,p.y,p.z-EPSILON)).w;
@@ -249,8 +249,8 @@ float3 EstimateNormal(float3 p) {
 float CalculateShadow(Ray ray, float dstToShadePoint) {
     float rayDst = 0;
     int marchSteps = 0;
-    float shadowIntensity = .2;
-    float brightness = 1;
+    float shadowIntensity = .1;
+    float brightness = 7;
 
     while (rayDst < dstToShadePoint) {
         marchSteps ++;
@@ -269,11 +269,35 @@ float CalculateShadow(Ray ray, float dstToShadePoint) {
     return shadowIntensity + (1-shadowIntensity) * brightness;
 }
 
+
 float scene2(float3 p)
 {
     p.y *= 2.;
 	//return 0.4-length(p)*0.03 + 0.5*(fbm(p*vec3(.3,.15,.3))-0.5); // value perturbation
     return 0.4-length(p*(1.0+fbm(p*float3(.3,.15,.3))))*0.02; // position perturbation
+}
+
+const int lightSamples = 10;
+
+float Scatter(float scatter, float3 pointOnSurface, float3 dirToLight)
+{
+    float lStep = 20./float(64);
+    int marchSteps = 0;
+    while(marchSteps < lightSamples)
+    {
+        float4 densityInfo = Scene(pointOnSurface + dirToLight *float(marchSteps) * lStep);
+        float density = densityInfo.w;
+        if(density > 0.05)
+        {
+            scatter *= 1. - density * 210./64.;
+                    
+        }
+        if(scatter <= 0.01)
+            break;
+        
+        marchSteps += 1;
+    }
+    return scatter;
 }
 
 
@@ -299,16 +323,17 @@ void CSMain (uint3 id : SV_DispatchThreadID)
         
         float dist = sceneInfo.w;
         
+        
         //Noise Application
         //dist += 0.5*(displacement(surfacePoint*float3(.3,.15,.3))-0.5); //Generates a fuzz ball.
-        dist += fbm(surfacePoint); //single pass value perturbance. Need to consider fbm or position perturbance
-        
+        dist += fbm(surfacePoint); 
+        float4 finalColor = float4(0.,0.,0.,1.);
         
         if(dist <= EPSILON) {
-            float3 pointOnSurface = ray.origin + ray.direction * dist;
-            float3 normal = EstimateNormal(pointOnSurface - ray.direction * EPSILON);
+            float3 pointOnSurface = ray.origin + dist * ray.direction;//+ ray.direction * dist;
+            float3 normal = EstimateNormal(pointOnSurface - ray.direction * EPSILON);//EPSILON
             float3 lightDir = (positionLight)?normalize(_Light-ray.origin):-_Light;
-            float lighting = saturate(saturate(dot(normal,lightDir)));
+            float lighting = saturate(saturate(dot(normal,lightDir))); //S2
             float3 col = sceneInfo.xyz;
             
             // Shadow
@@ -345,15 +370,36 @@ void CSMain (uint3 id : SV_DispatchThreadID)
                 }
             }
             
-            //Doing the basic, just seting the depth
-            //Result[id.xy] = float4( float3(1.0, 1.0, 1.0), 1); //Hardcoding the color white. we could multiple lighting and shadows here.
-            Result[id.xy] = float4((col * lighting * shadow + Tl ), 1);
-            //Result[id.xy] = Result[id.xy] * Noise[id.xy];
+            float DenseValue = 1.2;
+            float density = sceneInfo.w;
+            float temp = density/128;
+            if(density > 0.0)
+            {
+                
+                DenseValue *= 1. - temp * 210;
+                if( DenseValue <=0.01)
+                    break;
+                    
+                
+            
+            
+                //Doing the basic, just seting the depth
+                //Result[id.xy] = float4( float3(1.0, 1.0, 1.0), 1); //Hardcoding the color white. we could multiple lighting and shadows here.
+                
+                //Result[id.xy] = Result[id.xy] * Noise[id.xy];
+            }
+            float scatter = 1.0;
+            scatter = Scatter(scatter, pointOnSurface, dirToLight);
+            
+            finalColor += float4(col *  lighting * scatter + float3(.3,.3,.3)  , 1);//float3 is ambient
+            Result[id.xy] = finalColor;
             break;
         }
+        
         //Move along the ray
         ray.origin += ray.direction * dist;
         rayDist += dist;
+        
     }
     
     
